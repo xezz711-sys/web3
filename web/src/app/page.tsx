@@ -2,7 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { timeAgo } from '@/lib/utils';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { useState, useEffect } from 'react';
 import { useDeposit } from '@/hooks/use-deposit';
 import { Toast, ToastType } from '@/components/Toast';
@@ -46,6 +46,7 @@ interface Transaction {
   market: string;
   amount: string;
   timestamp: Date;
+  status: 'pending' | 'success' | 'failed';
 }
 
 // Pagination settings
@@ -53,6 +54,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function Home() {
   const { isConnected, address } = useAccount();
+  const publicClient = usePublicClient();
   const [selectedMarket, setSelectedMarket] = useState<typeof MARKETS[0] | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('deposit');
@@ -97,7 +99,46 @@ export default function Home() {
   // Reset page when data changes
   useEffect(() => {
     setCurrentPage(1);
+    setCurrentPage(1);
   }, [historyTxs.length]);
+
+  // Monitor pending session transactions
+  useEffect(() => {
+    if (!publicClient || sessionTxs.filter(tx => tx.status === 'pending').length === 0) return;
+
+    const checkStatus = async () => {
+      const pendingTxs = sessionTxs.filter(tx => tx.status === 'pending');
+      let updated = false;
+      const newTxs = [...sessionTxs];
+
+      for (const tx of pendingTxs) {
+        try {
+          // Check receipt
+          const receipt = await publicClient.getTransactionReceipt({ hash: tx.hash as `0x${string}` });
+          if (receipt) {
+            const index = newTxs.findIndex(t => t.hash === tx.hash);
+            if (index !== -1) {
+              newTxs[index] = { ...newTxs[index], status: receipt.status === 'success' ? 'success' : 'failed' };
+              updated = true;
+              if (receipt.status === 'success') {
+                 // Trigger refresh
+                 refetchHistory(); 
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore if receipt not found yet
+        }
+      }
+
+      if (updated) {
+        setSessionTxs(newTxs);
+      }
+    };
+
+    const interval = setInterval(checkStatus, 3000);
+    return () => clearInterval(interval);
+  }, [sessionTxs, publicClient, refetchHistory]);
 
   const openModal = (market: typeof MARKETS[0]) => {
     setSelectedMarket(market);
@@ -113,13 +154,14 @@ export default function Home() {
     setSelectedMarket(null);
   };
 
-  const addTransaction = (hash: string, type: Tab, market: string, amount: string) => {
+  const addTransaction = (hash: string, type: Tab, market: string, amount: string, status: 'pending' | 'success' | 'failed' = 'pending') => {
     setSessionTxs(prev => [{
       hash,
       type,
       market,
       amount,
       timestamp: new Date(),
+      status,
     }, ...prev]);
   };
 
@@ -417,8 +459,9 @@ export default function Home() {
                         </td>
 
                           {/* Status */}
+                          {/* Status */}
                           <td className="px-4 py-3.5">
-                            {tx.isSession ? (
+                            {(tx.isSession && (tx as any).status === 'pending') ? (
                               <span className="text-yellow-500 flex items-center gap-1.5 text-xs">
                                 <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -426,7 +469,7 @@ export default function Home() {
                                 </svg>
                                 Pending
                               </span>
-                            ) : tx.status === 'success' ? (
+                            ) : (tx.status === 'success' || (tx.isSession && (tx as any).status === 'success')) ? (
                               <span className="text-emerald-500 flex items-center gap-1.5 text-xs">
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
