@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { parseUnits } from 'viem';
 import { PBA_LEND_ADDRESS, PBA_LEND_ABI, ERC20_ABI } from '@/config/contracts';
 
@@ -16,6 +16,7 @@ interface UseRepayParams {
 
 export function useRepay() {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +44,10 @@ export function useRepay() {
         args: [PBA_LEND_ADDRESS, amountWei],
       });
       console.log('Approve repay tx:', approveHash);
+
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
 
       // Step 2: Repay loan
       setStep('repaying');
