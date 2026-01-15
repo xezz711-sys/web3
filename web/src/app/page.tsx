@@ -1,6 +1,7 @@
 'use client';
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { timeAgo } from '@/lib/utils';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 import { useDeposit } from '@/hooks/use-deposit';
@@ -379,7 +380,10 @@ export default function Home() {
                           </td>
 
                           {/* Date */}
-                          <td className="px-4 py-3.5">
+
+
+                        <td className="px-4 py-3.5">
+                          <div className="flex flex-col">
                             <span className="text-neutral-400 text-xs">
                               {tx.isSession ? (
                                 `${tx.timestamp.toLocaleDateString('en-GB')} ${tx.timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
@@ -387,7 +391,11 @@ export default function Home() {
                                 `${new Date(tx.timestamp).toLocaleDateString('en-GB')} ${new Date(tx.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                               )}
                             </span>
-                          </td>
+                            <span className="text-neutral-600 text-[10px]">
+                              {tx.isSession ? timeAgo(tx.timestamp) : timeAgo(new Date(tx.timestamp))}
+                            </span>
+                          </div>
+                        </td>
 
                           {/* Status */}
                           <td className="px-4 py-3.5">
