@@ -24,3 +24,4 @@ export default createConfig({
     schema: process.env.DATABASE_SCHEMA,
   },
 });
+
