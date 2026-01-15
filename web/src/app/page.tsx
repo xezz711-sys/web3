@@ -5,6 +5,7 @@ import { timeAgo } from '@/lib/utils';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 import { useDeposit } from '@/hooks/use-deposit';
+import { Toast, ToastType } from '@/components/Toast';
 import { useBorrow } from '@/hooks/use-borrow';
 import { useRepay } from '@/hooks/use-repay';
 import { useWithdraw } from '@/hooks/use-withdraw';
@@ -57,6 +58,11 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('deposit');
   const [amount, setAmount] = useState('');
   const [collateral, setCollateral] = useState('');
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType; txHash?: string }>({
+    visible: false,
+    message: '',
+    type: 'info'
+  });
   const [txStatus, setTxStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [txHash, setTxHash] = useState('');
   const [sessionTxs, setSessionTxs] = useState<Transaction[]>([]);
@@ -77,6 +83,16 @@ export default function Home() {
       setSessionTxs(prev => prev.filter(tx => !confirmedHashes.has(tx.hash.toLowerCase())));
     }
   }, [historyTxs]);
+
+  // Toast Logic for Loading Steps
+  useEffect(() => {
+    const steps = [deposit.step, borrow.step, repay.step, withdraw.step];
+    if (steps.includes('approving')) {
+      setToast({ visible: true, message: 'Please approve token usage in your wallet...', type: 'loading' });
+    } else if (steps.includes('depositing') || steps.includes('borrowing') || steps.includes('repaying') || steps.includes('withdrawing')) {
+      setToast({ visible: true, message: 'Please sign the transaction...', type: 'loading' });
+    }
+  }, [deposit.step, borrow.step, repay.step, withdraw.step]);
 
   // Reset page when data changes
   useEffect(() => {
@@ -157,14 +173,17 @@ export default function Home() {
         setTxHash(hash);
         setTxStatus('success');
         addTransaction(hash, tab, marketName, `${amount} ${selectedMarket.loanSymbol}`);
+        setToast({ visible: true, message: 'Transaction Sent Successfully!', type: 'success', txHash: hash });
         setAmount('');
         setCollateral('');
         // Auto-refresh blockchain history after successful transaction
         refetchHistory();
+        setTimeout(closeModal, 2000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setTxStatus('error');
+      setToast({ visible: true, message: err.message || 'Transaction Failed', type: 'error' });
     }
   };
 
@@ -683,6 +702,15 @@ export default function Home() {
         </div>
       )}
 
+          
+      {/* Toast Notification */}
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.visible}
+        onClose={() => setToast(prev => ({ ...prev, visible: false }))}
+        txHash={toast.txHash}
+      />
     </div>
   );
 }

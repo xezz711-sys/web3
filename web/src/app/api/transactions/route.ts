@@ -1,4 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { toFunctionSelector } from 'viem';
+
+// Function signatures to monitor
+const SIGNATURES = {
+  'deposit(address,address,uint256)': 'Deposit',
+  'borrow(address,address,uint256,uint256)': 'Borrow',
+  'repay(address,address,uint256)': 'Repay',
+  'withdraw(address,address,uint256)': 'Withdraw',
+  'createMarket(address,address,uint256,uint256,address)': 'Create Market',
+  'mint(address,uint256)': 'Mint',
+  'approve(address,uint256)': 'Approve',
+  'transfer(address,uint256)': 'Transfer'
+};
+
+// Pre-calculate selectors
+const SELECTORS = Object.entries(SIGNATURES).reduce((acc, [sig, name]) => {
+  acc[toFunctionSelector(sig)] = name;
+  return acc;
+}, {} as Record<string, string>);
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -25,8 +44,20 @@ export async function GET(request: NextRequest) {
       if (data.status === '1' && data.result && Array.isArray(data.result)) {
         const transactions = data.result.map((tx: any) => {
           let type = 'other';
-          let method = tx.functionName ? tx.functionName.split('(')[0] : 'Transfer';
           
+          // Decode method from input data
+          let method = 'Transfer'; // Default
+          if (tx.input && tx.input.length >= 10) {
+            const selector = tx.input.slice(0, 10);
+            if (SELECTORS[selector]) {
+              method = SELECTORS[selector];
+            } else if (tx.functionName) {
+              method = tx.functionName.split('(')[0];
+            }
+          } else if (tx.functionName) {
+            method = tx.functionName.split('(')[0];
+          }
+
           const methodLower = method.toLowerCase();
           if (tx.to === '' || tx.to === null) {
             type = 'deploy';
@@ -41,9 +72,16 @@ export async function GET(request: NextRequest) {
             type = 'withdraw';
           } else if (methodLower.includes('approve')) {
             type = 'approve';
-          } else if (methodLower.includes('createmarket')) {
+          } else if (methodLower.includes('mint')) {
+            type = 'transfer'; // Mints often show as transfers in some UIs, but here we want 'Mint' type if possible, or keep logic consistent
+            // Actually, if method is 'Mint', type should be 'other' or specific? 
+            // The frontend uses 'type' for icon. Let's map 'mint' to 'transfer' (green incoming) or leave 'other'.
+            // HistoryTransaction type union: 'deposit' | 'borrow' | 'repay' | 'withdraw' | 'approve' | 'create_market' | 'deploy' | 'transfer' | 'other'
+            // Let's treat Mint as 'transfer' for now or add 'mint' to type definition?
+            // Existing types don't have 'mint'. 'other' uses default icon.
+            // Let's use 'transfer' for Mint for now as it receives tokens.
+          } else if (methodLower.includes('create market')) {
             type = 'create_market';
-            method = 'Create Market';
           }
           
           return {
