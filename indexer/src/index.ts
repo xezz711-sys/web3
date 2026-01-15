@@ -1,18 +1,22 @@
 import { ponder } from "@/generated";
-import * as schema from "../ponder.schema";
 
 // =============================================================================
 // MarketCreated Event Handler
 // =============================================================================
 ponder.on("PBALend:MarketCreated", async ({ event, context }) => {
   const { loanToken, collateralToken, interestRate, LTV } = event.args;
+  const id = `${loanToken}-${collateralToken}`;
 
-  await context.db.insert(schema.market).values({
-    loanToken,
-    collateralToken,
-    interestRate,
-    LTV,
-  }).onConflictDoNothing();
+  await context.db.market.upsert({
+    id,
+    create: {
+      loanToken,
+      collateralToken,
+      interestRate,
+      LTV,
+    },
+    update: {},
+  });
 
   console.log("PBALend: MarketCreated", {
     loanToken,
@@ -27,31 +31,28 @@ ponder.on("PBALend:MarketCreated", async ({ event, context }) => {
 // =============================================================================
 ponder.on("PBALend:Deposit", async ({ event, context }) => {
   const { loanToken, collateralToken, user, amount, shares } = event.args;
+  const id = `${loanToken}-${collateralToken}-${user}`;
 
-  const currentPosition = await context.db.find(schema.lendPosition, {
-    loanToken,
-    collateralToken,
-    user,
-  });
+  const currentPosition = await context.db.lendPosition.findUnique({ id });
 
   if (!currentPosition) {
-    // Insert new position
-    await context.db.insert(schema.lendPosition).values({
-      loanToken,
-      collateralToken,
-      user,
-      amount,
-      shares,
-    }).onConflictDoNothing();
+    await context.db.lendPosition.create({
+      id,
+      data: {
+        loanToken,
+        collateralToken,
+        user,
+        amount,
+        shares,
+      },
+    });
   } else {
-    // Update existing position
-    await context.db.update(schema.lendPosition, {
-      loanToken,
-      collateralToken,
-      user,
-    }).set({
-      amount: currentPosition.amount + amount,
-      shares: currentPosition.shares + shares,
+    await context.db.lendPosition.update({
+      id,
+      data: {
+        amount: currentPosition.amount + amount,
+        shares: currentPosition.shares + shares,
+      },
     });
   }
 
@@ -69,33 +70,30 @@ ponder.on("PBALend:Deposit", async ({ event, context }) => {
 // =============================================================================
 ponder.on("PBALend:Borrow", async ({ event, context }) => {
   const { loanToken, collateralToken, user, amount, shares, collateralAmount } = event.args;
+  const id = `${loanToken}-${collateralToken}-${user}`;
 
-  const currentPosition = await context.db.find(schema.borrowPosition, {
-    loanToken,
-    collateralToken,
-    user,
-  });
+  const currentPosition = await context.db.borrowPosition.findUnique({ id });
 
   if (!currentPosition) {
-    // Insert new position
-    await context.db.insert(schema.borrowPosition).values({
-      loanToken,
-      collateralToken,
-      user,
-      amount,
-      shares,
-      collateralAmount,
-    }).onConflictDoNothing();
+    await context.db.borrowPosition.create({
+      id,
+      data: {
+        loanToken,
+        collateralToken,
+        user,
+        amount,
+        shares,
+        collateralAmount,
+      },
+    });
   } else {
-    // Update existing position
-    await context.db.update(schema.borrowPosition, {
-      loanToken,
-      collateralToken,
-      user,
-    }).set({
-      amount: currentPosition.amount + amount,
-      shares: currentPosition.shares + shares,
-      collateralAmount: currentPosition.collateralAmount + collateralAmount,
+    await context.db.borrowPosition.update({
+      id,
+      data: {
+        amount: currentPosition.amount + amount,
+        shares: currentPosition.shares + shares,
+        collateralAmount: currentPosition.collateralAmount + collateralAmount,
+      },
     });
   }
 
@@ -114,38 +112,21 @@ ponder.on("PBALend:Borrow", async ({ event, context }) => {
 // =============================================================================
 ponder.on("PBALend:Repay", async ({ event, context }) => {
   const { loanToken, collateralToken, user, shares, amount } = event.args;
+  const id = `${loanToken}-${collateralToken}-${user}`;
 
-  const currentPosition = await context.db.find(schema.borrowPosition, {
-    loanToken,
-    collateralToken,
-    user,
-  });
+  const currentPosition = await context.db.borrowPosition.findUnique({ id });
 
   if (currentPosition) {
-    // Decrease borrow position
     const newAmount = currentPosition.amount - amount;
     const newShares = currentPosition.shares - shares;
 
-    if (newShares <= BigInt(0)) {
-      // Position fully repaid - could delete or set to zero
-      await context.db.update(schema.borrowPosition, {
-        loanToken,
-        collateralToken,
-        user,
-      }).set({
-        amount: BigInt(0),
-        shares: BigInt(0),
-      });
-    } else {
-      await context.db.update(schema.borrowPosition, {
-        loanToken,
-        collateralToken,
-        user,
-      }).set({
+    await context.db.borrowPosition.update({
+      id,
+      data: {
         amount: newAmount > BigInt(0) ? newAmount : BigInt(0),
-        shares: newShares,
-      });
-    }
+        shares: newShares > BigInt(0) ? newShares : BigInt(0),
+      },
+    });
   }
 
   console.log("PBALend: Repay", {
@@ -162,38 +143,21 @@ ponder.on("PBALend:Repay", async ({ event, context }) => {
 // =============================================================================
 ponder.on("PBALend:Withdraw", async ({ event, context }) => {
   const { loanToken, collateralToken, user, amount, shares } = event.args;
+  const id = `${loanToken}-${collateralToken}-${user}`;
 
-  const currentPosition = await context.db.find(schema.lendPosition, {
-    loanToken,
-    collateralToken,
-    user,
-  });
+  const currentPosition = await context.db.lendPosition.findUnique({ id });
 
   if (currentPosition) {
-    // Decrease lend position
     const newAmount = currentPosition.amount - amount;
     const newShares = currentPosition.shares - shares;
 
-    if (newShares <= BigInt(0)) {
-      // Position fully withdrawn
-      await context.db.update(schema.lendPosition, {
-        loanToken,
-        collateralToken,
-        user,
-      }).set({
-        amount: BigInt(0),
-        shares: BigInt(0),
-      });
-    } else {
-      await context.db.update(schema.lendPosition, {
-        loanToken,
-        collateralToken,
-        user,
-      }).set({
+    await context.db.lendPosition.update({
+      id,
+      data: {
         amount: newAmount > BigInt(0) ? newAmount : BigInt(0),
-        shares: newShares,
-      });
-    }
+        shares: newShares > BigInt(0) ? newShares : BigInt(0),
+      },
+    });
   }
 
   console.log("PBALend: Withdraw", {
@@ -210,23 +174,18 @@ ponder.on("PBALend:Withdraw", async ({ event, context }) => {
 // =============================================================================
 ponder.on("PBALend:WithdrawCollateral", async ({ event, context }) => {
   const { loanToken, collateralToken, user, amount } = event.args;
+  const id = `${loanToken}-${collateralToken}-${user}`;
 
-  const currentPosition = await context.db.find(schema.borrowPosition, {
-    loanToken,
-    collateralToken,
-    user,
-  });
+  const currentPosition = await context.db.borrowPosition.findUnique({ id });
 
   if (currentPosition) {
-    // Decrease collateral amount
     const newCollateralAmount = currentPosition.collateralAmount - amount;
 
-    await context.db.update(schema.borrowPosition, {
-      loanToken,
-      collateralToken,
-      user,
-    }).set({
-      collateralAmount: newCollateralAmount > BigInt(0) ? newCollateralAmount : BigInt(0),
+    await context.db.borrowPosition.update({
+      id,
+      data: {
+        collateralAmount: newCollateralAmount > BigInt(0) ? newCollateralAmount : BigInt(0),
+      },
     });
   }
 
