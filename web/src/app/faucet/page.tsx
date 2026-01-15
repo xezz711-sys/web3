@@ -44,7 +44,6 @@ const TOKENS = [
 
 export default function FaucetPage() {
   const { isConnected, address } = useAccount();
-  const { mint, isLoading, isSuccess, hash } = useFaucet();
 
   return (
     <div className="min-h-screen bg-black">
@@ -78,35 +77,8 @@ export default function FaucetPage() {
                 key={token.symbol} 
                 token={token} 
                 userAddress={address}
-                onMint={() => mint(token.address, address!, token.mintAmount, token.decimals)}
-                isMinting={isLoading}
               />
             ))}
-          </div>
-        )}
-
-        {/* Transaction Success Message */}
-        {isSuccess && hash && (
-          <div className="mt-8 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex items-center gap-3">
-              <span className="text-emerald-500 bg-emerald-500/20 p-2 rounded-full">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </span>
-              <div>
-                <p className="text-white font-medium">Tokens Minted Successfully!</p>
-                <p className="text-neutral-400 text-sm">Your balance will update shortly.</p>
-              </div>
-            </div>
-            <a 
-              href={`https://sepolia.etherscan.io/tx/${hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-400 hover:text-emerald-300 text-sm font-medium hover:underline"
-            >
-              View on Etherscan
-            </a>
           </div>
         )}
       </section>
@@ -114,14 +86,15 @@ export default function FaucetPage() {
   );
 }
 
-function TokenCard({ token, userAddress, onMint, isMinting }: { 
+function TokenCard({ token, userAddress }: { 
   token: typeof TOKENS[number], 
-  userAddress?: `0x${string}`, 
-  onMint: () => void,
-  isMinting: boolean
+  userAddress?: `0x${string}`
 }) {
+  // Use Faucet Hook per card to isolate state
+  const { mint, isLoading, isSuccess, hash } = useFaucet();
+
   // Fetch Balance
-  const { data: balance, refetch } = useReadContract({
+  const { data: balance } = useReadContract({
     address: token.address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
@@ -164,11 +137,11 @@ function TokenCard({ token, userAddress, onMint, isMinting }: {
       </div>
 
       <button
-        onClick={onMint}
-        disabled={isMinting}
+        onClick={() => mint(token.address, userAddress!, token.mintAmount, token.decimals)}
+        disabled={isLoading}
         className="w-full py-3 bg-neutral-100 hover:bg-white text-black font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
-        {isMinting ? (
+        {isLoading ? (
           <>
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -185,6 +158,28 @@ function TokenCard({ token, userAddress, onMint, isMinting }: {
           </>
         )}
       </button>
+
+      {/* Success Message Inside Card */}
+      {isSuccess && hash && (
+        <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <span className="text-emerald-500 text-xs font-medium flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Minted!
+            </span>
+            <a 
+              href={`https://sepolia.etherscan.io/tx/${hash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 text-xs underline"
+            >
+              View Tx
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
