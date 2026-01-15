@@ -90,15 +90,22 @@ export default function Home() {
   useEffect(() => {
     const steps = [deposit.step, borrow.step, repay.step, withdraw.step];
     if (steps.includes('approving')) {
-      setToast({ visible: true, message: 'Please approve token usage in your wallet...', type: 'loading' });
+      setToast({ visible: true, message: 'Step 1/2: Approving token...', type: 'loading' });
     } else if (steps.includes('depositing') || steps.includes('borrowing') || steps.includes('repaying') || steps.includes('withdrawing')) {
-      setToast({ visible: true, message: 'Please sign the transaction...', type: 'loading' });
+      setToast({ visible: true, message: 'Step 2/2: Please sign the transaction...', type: 'loading' });
+    } else {
+      // All steps finished (idle/success/error), clear loading toast
+      setToast(prev => {
+        if (prev.type === 'loading') {
+          return { ...prev, visible: false };
+        }
+        return prev;
+      });
     }
   }, [deposit.step, borrow.step, repay.step, withdraw.step]);
 
   // Reset page when data changes
   useEffect(() => {
-    setCurrentPage(1);
     setCurrentPage(1);
   }, [historyTxs.length]);
 
