@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: 'PBALend - DeFi Lending Protocol',
@@ -14,9 +16,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-slate-900 text-slate-100 min-h-screen">
+      <body className="bg-black text-white min-h-screen flex flex-col">
         <Providers>
-          {children}
+          <Header />
+          <main className="flex-grow">
+            {children}
+          </main>
+          <Footer />
         </Providers>
       </body>
     </html>
