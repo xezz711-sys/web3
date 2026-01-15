@@ -65,6 +65,7 @@ export function useRepay() {
       setStep('error');
       setError(err.message || 'Transaction failed');
       console.error('Repay error:', err);
+      throw err;
     }
   };
 

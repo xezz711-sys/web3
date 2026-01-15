@@ -75,6 +75,7 @@ export function useBorrow() {
       setStep('error');
       setError(err.message || 'Transaction failed');
       console.error('Borrow error:', err);
+      throw err;
     }
   };
 

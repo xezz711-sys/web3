@@ -65,6 +65,7 @@ export function useDeposit() {
       setStep('error');
       setError(err.message || 'Transaction failed');
       console.error('Deposit error:', err);
+      throw err;
     }
   };
 
