@@ -69,6 +69,7 @@ export default function Home() {
   const [txHash, setTxHash] = useState('');
   const [sessionTxs, setSessionTxs] = useState<Transaction[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [, setTimestampTick] = useState(0); // Triggers re-render for relative time updates
 
   const deposit = useDeposit();
   const borrow = useBorrow();
@@ -85,6 +86,14 @@ export default function Home() {
       setSessionTxs(prev => prev.filter(tx => !confirmedHashes.has(tx.hash.toLowerCase())));
     }
   }, [historyTxs]);
+
+  // Real-time timestamp updates - refresh every 30 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setTimestampTick(prev => prev + 1);
+    }, 30000); // Update every 30 seconds
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Toast Logic for Loading Steps
   useEffect(() => {
